@@ -1,31 +1,58 @@
+import signal
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk as gtk
 gi.require_version('AppIndicator3', '0.1')
-from gi.repository import AppIndicator3 as appindicator
-import signal
-import sys
-import os
+from gi.repository import Gtk, AppIndicator3, GObject
+import time
+from threading import Thread
+import commands
 
-APPINDICATOR_ID = 'myappindicator'
+class Indicator():
+    def __init__(self):
+        self.app = 'capslock-indicator'
+        #iconpath = "/opt/abouttime/icon/indicator_icon.png"
+        self.indicator = AppIndicator3.Indicator.new(
+            self.app, "CapsLock",
+            AppIndicator3.IndicatorCategory.OTHER)
+        self.indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)       
+        self.indicator.set_menu(self.create_menu())
+        self.indicator.set_label(".", self.app)
+        # the thread:
+        self.update = Thread(target=self.show_seconds)
+        # daemonize the thread to make the indicator stopable
+        self.update.setDaemon(True)
+        self.update.start()
 
-def build_menu():
-   	menu = gtk.Menu()
-	item_quit = gtk.MenuItem('Quit')
-    	item_quit.connect('activate', quit)
-    	menu.append(item_quit)
-    	menu.show_all()
-    	return menu
- 
-def quit(source):
-    	gtk.main_quit()
+    def create_menu(self):
+        menu = Gtk.Menu()
+        menu_sep = Gtk.SeparatorMenuItem()
+        menu.append(menu_sep)
+        # quit
+        item_quit = Gtk.MenuItem('Quit')
+        item_quit.connect('activate', self.stop)
+        menu.append(item_quit)
+        menu.show_all()
+        return menu
 
-def main():
-	indicator = appindicator.Indicator.new(APPINDICATOR_ID, gtk.STOCK_INFO, appindicator.IndicatorCategory.SYSTEM_SERVICES)
-        indicator.set_status(appindicator.IndicatorStatus.ACTIVE)
-    	indicator.set_menu(build_menu())
-    	gtk.main()
+    def show_seconds(self):
+   	#getting the status of the capslock
+        while True:
+		if commands.getoutput('xset q | grep LED')[65] == '0':
+			mention='a'
+		else: 
+			mention='A'
+            # apply the interface update using  GObject.idle_add()
+           	GObject.idle_add(
+                	self.indicator.set_label,
+                	mention, self.app,
+                	priority=GObject.PRIORITY_DEFAULT
+                	)
 
-if __name__ == "__main__":
-	signal.signal(signal.SIGINT, signal.SIG_DFL)
-    	main() 	
+    def stop(self, source):
+        Gtk.main_quit()
+
+Indicator()
+# this is where we call GObject.threads_init()
+GObject.threads_init()
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+Gtk.main()
