@@ -5,6 +5,7 @@ Simply put the following script in the startup application and done.
 
 Written in: 
   1.  python2.7
+
 Written for:
   1. Ubuntu
   
